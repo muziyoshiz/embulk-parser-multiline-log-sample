@@ -21,9 +21,8 @@ module Embulk
         parser_task = config.load_config(Java::LineDecoder::DecoderTask)
 
         task = {
-          "decoder_task" => DataSource.from_java(parser_task.dump)
-          # "property1" => config.param("property1", :string),
-          # "property2" => config.param("property2", :integer, default: 0),
+          "decoder_task" => DataSource.from_java(parser_task.dump),
+          "log_levels" => config.param("log_levels", :array, default: nil)
         }
 
         columns = [
@@ -41,25 +40,8 @@ module Embulk
 
       def init
         # initialization code:
-        # @property1 = task["property1"]
-        # @property2 = task["property2"]
-
         @decoder_task = task.param("decoder_task", :hash).load_task(Java::LineDecoder::DecoderTask)
-      end
-
-      def read_new_line(decoder)
-        begin
-          line = decoder.poll
-        rescue
-          # At first time, java.lang.IllegalStateException is thrown
-        end
-
-        if line == nil
-          return nil if decoder.nextFile == false
-          read_new_line(decoder)
-        else
-          line
-        end
+        @log_levels = task["log_levels"]
       end
 
       def run(file_input)
@@ -84,7 +66,8 @@ module Embulk
 
           # check if the line is "first line" or not
           if second_line.nil? or second_line.match(REGEXP_FIRST_LINE)
-            page_builder.add([ Time.parse(md[1]), md[2], md[3] ])
+            data = [ Time.parse(md[1]), md[2], md[3] ]
+            page_builder.add(data) if should_add?(data)
 
             # treat second line as next "first line"
             line = second_line
@@ -96,7 +79,8 @@ module Embulk
 
           # check if the line is "first line" or not
           if third_line.nil? or third_line.match(REGEXP_FIRST_LINE)
-            page_builder.add([ Time.parse(md[1]), md[2], md[3], second_line.strip ])
+            data = [ Time.parse(md[1]), md[2], md[3], second_line.strip ]
+            page_builder.add(data) if should_add?(data)
 
             # treat third line as next "first line"
             line = third_line
@@ -108,7 +92,8 @@ module Embulk
             other_line = read_new_line(decoder)
 
             if other_line.nil? or other_line.match(REGEXP_FIRST_LINE)
-              page_builder.add([ Time.parse(md[1]), md[2], md[3], second_line.strip, third_line.strip ])
+              data = [ Time.parse(md[1]), md[2], md[3], second_line.strip, third_line.strip ]
+              page_builder.add(data) if should_add?(data)
 
               # treat third line as next "first line"
               line = other_line
@@ -119,7 +104,8 @@ module Embulk
             md_caused = other_line.match(REGEXP_CAUSED_BY)
 
             if md_caused
-              page_builder.add([ Time.parse(md[1]), md[2], md[3], second_line.strip, third_line.strip, md_caused[1], md_caused[2] ])
+              data = [ Time.parse(md[1]), md[2], md[3], second_line.strip, third_line.strip, md_caused[1], md_caused[2] ]
+              page_builder.add(data) if should_add?(data)
 
               # read new line as next "first line"
               line = read_new_line(decoder)
@@ -130,7 +116,30 @@ module Embulk
 
         page_builder.finish
       end
-    end
 
+      # Return new line from any file or nil
+      def read_new_line(decoder)
+        begin
+          line = decoder.poll
+        rescue
+          # At first time, java.lang.IllegalStateException is thrown
+        end
+
+        if line == nil
+          return nil if decoder.nextFile == false
+          read_new_line(decoder)
+        else
+          line
+        end
+      end
+
+      # Return true if the data should be added
+      def should_add?(data)
+        if @log_levels
+          return (data.size >= 2 and @log_levels.include?(data[1]))
+        end
+        true
+      end
+    end
   end
 end
