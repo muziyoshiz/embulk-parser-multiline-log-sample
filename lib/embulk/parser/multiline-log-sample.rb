@@ -6,11 +6,10 @@ module Embulk
 
       # Regexp for first line of each log message
       # e.g. 2015-03-14 20:12:22,123 [ERROR] Book reader error
-      #   1: date
-      #   2: time
-      #   3: log_level
-      #   4: message
-      REGEXP_FIRST_LINE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2},\d{3}) \[([^\]]+)\] (.+)$/
+      #   1: time
+      #   2: log_level
+      #   3: message
+      REGEXP_FIRST_LINE = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) \[([^\]]+)\] (.+)$/
 
       # Regexp for "Caused by" message of each log message
       #   1: caused_by
@@ -28,14 +27,13 @@ module Embulk
         }
 
         columns = [
-          Column.new(0, "date", :string),
-          Column.new(1, "time", :string),
-          Column.new(2, "log_level", :string),
-          Column.new(3, "message", :string),
-          Column.new(4, "second_line", :string),
-          Column.new(5, "third_line", :string),
-          Column.new(6, "caused_by", :string),
-          Column.new(7, "caused_by_message", :string),
+          Column.new(0, "time", :timestamp),
+          Column.new(1, "log_level", :string),
+          Column.new(2, "message", :string),
+          Column.new(3, "second_line", :string),
+          Column.new(4, "third_line", :string),
+          Column.new(5, "caused_by", :string),
+          Column.new(6, "caused_by_message", :string),
         ]
 
         yield(task, columns)
@@ -86,7 +84,7 @@ module Embulk
 
           # check if the line is "first line" or not
           if second_line.nil? or second_line.match(REGEXP_FIRST_LINE)
-            page_builder.add([ md[1], md[2], md[3], md[4] ])
+            page_builder.add([ Time.parse(md[1]), md[2], md[3] ])
 
             # treat second line as next "first line"
             line = second_line
@@ -98,7 +96,7 @@ module Embulk
 
           # check if the line is "first line" or not
           if third_line.nil? or third_line.match(REGEXP_FIRST_LINE)
-            page_builder.add([ md[1], md[2], md[3], md[4], second_line.strip ])
+            page_builder.add([ Time.parse(md[1]), md[2], md[3], second_line.strip ])
 
             # treat third line as next "first line"
             line = third_line
@@ -110,7 +108,7 @@ module Embulk
             other_line = read_new_line(decoder)
 
             if other_line.nil? or other_line.match(REGEXP_FIRST_LINE)
-              page_builder.add([ md[1], md[2], md[3], md[4], second_line.strip, third_line.strip ])
+              page_builder.add([ Time.parse(md[1]), md[2], md[3], second_line.strip, third_line.strip ])
 
               # treat third line as next "first line"
               line = other_line
@@ -121,7 +119,7 @@ module Embulk
             md_caused = other_line.match(REGEXP_CAUSED_BY)
 
             if md_caused
-              page_builder.add([ md[1], md[2], md[3], md[4], second_line.strip, third_line.strip, md_caused[1], md_caused[2] ])
+              page_builder.add([ Time.parse(md[1]), md[2], md[3], second_line.strip, third_line.strip, md_caused[1], md_caused[2] ])
 
               # read new line as next "first line"
               line = read_new_line(decoder)
