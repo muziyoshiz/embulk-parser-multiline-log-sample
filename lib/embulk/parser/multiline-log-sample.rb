@@ -10,12 +10,12 @@ module Embulk
       #   2: time
       #   3: log_level
       #   4: message
-      @@regexp_first_line = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2},\d{3}) \[([^\]]+)\] (.+)$/
+      REGEXP_FIRST_LINE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2},\d{3}) \[([^\]]+)\] (.+)$/
 
       # Regexp for "Caused by" message of each log message
       #   1: caused_by
       #   2: caused_by_message
-      @@regexp_caused_by = /^Caused by: ([^:]+)(?:: (.+))?$/
+      REGEXP_CAUSED_BY = /^Caused by: ([^:]+)(?:: (.+))?$/
 
       def self.transaction(config, &control)
         # configuration code:
@@ -74,7 +74,7 @@ module Embulk
           break if line.nil?
 
           # check if the line is "first line"
-          md = line.match(@@regexp_first_line)
+          md = line.match(REGEXP_FIRST_LINE)
 
           unless md
             line = read_new_line(decoder)
@@ -85,7 +85,7 @@ module Embulk
           second_line = read_new_line(decoder)
 
           # check if the line is "first line" or not
-          if second_line.nil? or second_line.match(@@regexp_first_line)
+          if second_line.nil? or second_line.match(REGEXP_FIRST_LINE)
             page_builder.add([ md[1], md[2], md[3], md[4] ])
 
             # treat second line as next "first line"
@@ -97,7 +97,7 @@ module Embulk
           third_line = read_new_line(decoder)
 
           # check if the line is "first line" or not
-          if third_line.nil? or third_line.match(@@regexp_first_line)
+          if third_line.nil? or third_line.match(REGEXP_FIRST_LINE)
             page_builder.add([ md[1], md[2], md[3], md[4], second_line.strip ])
 
             # treat third line as next "first line"
@@ -109,7 +109,7 @@ module Embulk
           loop do
             other_line = read_new_line(decoder)
 
-            if other_line.nil? or other_line.match(@@regexp_first_line)
+            if other_line.nil? or other_line.match(REGEXP_FIRST_LINE)
               page_builder.add([ md[1], md[2], md[3], md[4], second_line.strip, third_line.strip ])
 
               # treat third line as next "first line"
@@ -118,7 +118,7 @@ module Embulk
             end
 
             # check if the line is "Caused by" message
-            md_caused = other_line.match(@@regexp_caused_by)
+            md_caused = other_line.match(REGEXP_CAUSED_BY)
 
             if md_caused
               page_builder.add([ md[1], md[2], md[3], md[4], second_line.strip, third_line.strip, md_caused[1], md_caused[2] ])
